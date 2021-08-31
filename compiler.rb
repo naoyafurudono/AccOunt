@@ -12,7 +12,10 @@ class Compiler
         @count += 1
       end
     end
+
     def initialize()
+      @plan_compiled = nil
+      @event_integrated = nil
       @env_trace = {}
       @table = {}
       @fresh = FreshID.new
@@ -68,14 +71,16 @@ class Compiler
 
     # S-exp -> Hash
     def compile(s_exp)
-      if @cache then return @cache; end
+      initialize()
       case s_exp
         in [:leg, leg_id, plans, events]
-          plan_tile_blocks = compile_plans(plans)
+          @plan_compiled = compile_plans(plans)
+          puts("debug: compile_plans res")
+          PP.pp(@plan_compiled)
 
-          tile_blocks = integrate_events(events, plan_tile_blocks)
+          @event_integrated = integrate_events(events, @plan_compiled)
 
-          structured_blocks = layout_bloks(tile_blocks)
+          structured_blocks = layout_bloks(@event_integrated)
           @cache = structured_blocks
 
       else raise "accOunt: Syntax Error\n  leg should be a form like (leg N plans events)\n"
@@ -461,7 +466,7 @@ def test()
   print("DEBUG: compiler output:\n")
   PP.pp(res)
   PP.pp C.makeNatural(s_exp)
-  res
+  # res
 
   # expr2 = C.scan(Ex2)
   # res2 = C.compile(expr2)

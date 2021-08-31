@@ -1,0 +1,58 @@
+(leg 1
+(plans
+  (plan 初期プラン
+    [1
+      (go 道)
+      (get (分岐 道 川))]
+    [2
+      (go 川)
+      (get (終わり 川))]
+    [3
+      (go (線 尾根))
+      (get 岩)]
+    [4    ;; hogehoge
+      straight
+      (get 道)]
+    [5
+      (go 道)
+      (get (変わり目 半ば開けた土地 開けた土地))]
+    [6
+      straight
+      (get 目的地)]
+    )
+  (plan 新しいプラン
+    [8
+      (go 道)
+      (get (終わり 道))]
+    [9
+      (go (線 沢))
+      (get 目的地)]
+    ))
+(events
+    [1
+      straight 
+      (get (plan 3))
+      (done 3 3)]
+    [2
+      as-plan
+      (get 道)
+      (done 4 3)]
+    [3
+      ((go 道)
+       (unconfirmed (plan 5)))
+      (get (分岐 道 道))
+      unrelated]
+    [10
+       (go (線 沢))
+       (get (分岐 (線 沢) 川))
+       unrelated]
+    [5
+     as-plan
+     (get (plan 8))
+     (done 8 3)]
+    [6
+      (go (線 沢))
+      (get 目的地)
+      (done 9 3)]
+      )
+)
