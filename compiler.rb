@@ -20,6 +20,14 @@ class Compiler
       @table = {}
       @fresh = FreshID.new
       @layoutX= {}  # TraceID => [:x, N] | TraceID
+      @cache = false
+      @natural = ""
+    end
+    def table()
+      @table
+    end
+    def env()
+      @env_trace
     end
 
     def deref_layout(id)
@@ -63,6 +71,7 @@ class Compiler
 
     # S-exp -> Hash
     def compile(s_exp)
+      if @cache then return @cache; end
       case s_exp
         in [:leg, leg_id, plans, events]
           plan_tile_blocks = compile_plans(plans)
@@ -70,18 +79,17 @@ class Compiler
           tile_blocks = integrate_events(events, plan_tile_blocks)
 
           structured_blocks = layout_bloks(tile_blocks)
+          @cache = structured_blocks
 
       else raise "accOunt: Syntax Error\n  leg should be a form like (leg N plans events)\n"
       end
     end
 
     def compile_plans(plans_sxp)
-      # plans ::= [:plans, [:plan, planID, plan_list], ...]
       unless plans_sxp[0].equal?(:plans) then
          raise "AccOunt: syntax error.\n  expect plans but not fed"
       end
 
-      # print("\nplans[1..-1]: #{plans_sxp[1..-1]}\n")
       plans_sxp[1..-1].map { |plan_sxp|
         unless plan_sxp[0].equal?(:plan) then
            raise "Account: syntax error.\n  expected plan, found #{plan_sxp[0]}"
@@ -90,12 +98,6 @@ class Compiler
         traces = plan_sxp[2..-1]
         traces.map { |trace|
           compile_trace(trace)
-          # case trace
-          #   in [trace_id, [:go, linear_obj], [:get, finish_obj]]
-          #     print("trace!! id:#{trace_id}\n")
-          #   in [trace_id, :straight, [:get, finish_obj]]
-          #     print("trace!! id:#{trace_id}\n")
-          # end
         }
       }
     end
@@ -106,9 +108,6 @@ class Compiler
           path = compile_move(move)
           target = compile_recognize(recognize)
           @env_trace[trace_id] = target
-        # in [trace_id, :straight, finish_obj_sxp]
-        #   path = "直進する"
-        #   target = compile_obj(finish_obj_sxp)
         # TODO in ... 軌跡ID
 
           data = {id: trace_id ,:data => {"target"=> target, path: path, "type"=>"planned"}}
@@ -211,7 +210,6 @@ class Compiler
                 if (not status)
                   status = true
                   plans_compiled[current_row].prepend(unplanned_tiles).flatten!
-                  # PP.pp(plans_compiled[current_row])
                   unplanned_tiles = []
                 end
               in :unrelated
@@ -243,28 +241,11 @@ class Compiler
       }
       plans_compiled
     end
-      #   msg = nil
-      #   new_plan = nil
-      #   call_back = (id) => nil
-      #   case action_sxp
-      #     in :'as-plan'
-      #       msg = "プラン通り"
-      #     in [move, [:unconfirmed, obj]]
-      #       # TODO 認識できない情報を反映する
-      #       msg = compile_obj(move)
-      #       _ = compile_obj(obj)
-      #       call_back = (id) => 
-      #   end
-      # end
 
     ############# Layout ####################
 
     def get_tile(tile_blocks, id)
       tile_blocks.flatten.find{ |tile|
-        # print("get_item\nid: ")
-        # print(id)
-        # print("\nsearch for: ")
-        # print(tile[:id])
         tile[:id].eql?(id)} || (raise "AccOunt: internal error. get_tile")
     end
 
@@ -281,9 +262,6 @@ class Compiler
         x = 0
         y = y_size
         for tile in block do
-          # tile が unplanned場合
-          # print("\nlast_id: #{last_id}\n")
-          # print(tile)
           if tile[:data].key?("type") && tile[:data]["type"].eql?("unplanned")
             x = deref_layout(tile[:id])
 
@@ -295,7 +273,6 @@ class Compiler
           tile[:y] = y
           @layoutX[tile[:id]] = [:x, x]
           x += 1
-          # print(@table[tile[:id]])
           last_id = tile[:id] if ["executed", "unplanned"].include?(@table[tile[:id]][:data]["type"])
         end
         x_size = [x_size, x + 1].max
@@ -308,6 +285,57 @@ class Compiler
     end
 
     ################ end Layout ################
+
+  def makeNatural(expr)
+    @cache = compile(expr) unless @cache
+    res = ""
+
+    case expr
+      in [:leg, leg_id, plans, events]
+        natural(plans, events, res)
+    else raise "AccOunt: syntax error. makeNatural"
+    end
+  end
+
+  def natural(plans, events, res)
+    plan_arr = plans[1..-1]
+    PP.pp(plans)
+    PP.pp(plan_arr)
+    plan = plan_arr[0]
+    plan2natural(plan)
+
+  end
+
+  def plan2natural(plan)
+    raise "AccOunt internal" unless plan[0].equal?(:plan)
+    plan_name = plan[1]
+    trace_arr = plan[2..-1]
+    plan_name.to_s << "としては以下のものを考えた:\n  "<< trace_arr.map{ |trace| trace2natural(trace)}.join(sep="\n  ")
+  end
+  def trace2natural(trace)
+    case trace
+      in [id, move, finish]
+        "(#{id}) " << move2natural(move) << finish2natural(finish) << "まで行く"
+    end
+  end
+
+  def move2natural(move)
+    case move
+      in [:go, obj]
+        compile_obj(obj) << "に沿って"
+      in :straight
+        "直進で"
+    end
+  end
+
+  def finish2natural(finish)
+    case finish
+      in [:get, obj]
+        compile_obj(obj)
+      in :finish
+        "終わり"
+    end
+  end
 end
 ##################### end Compiler ###########
 
@@ -435,6 +463,7 @@ def test()
   res = C.compile(s_exp)
   print("DEBUG: compiler output:\n")
   PP.pp(res)
+  PP.pp C.makeNatural(s_exp)
   res
 
   # expr2 = C.scan(Ex2)
