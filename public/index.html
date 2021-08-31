@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="ja">
+	<head>
+		<meta charset="utf-8">
+		<title>AccOunt Viewer</title>
+		<link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/fomantic-ui@2.8.8/dist/semantic.min.css">
+		<style>
+			h1 {
+				margin: calc(2rem - .1428571428571429em) 0 1rem !important;
+			}
+
+			textarea {
+				width: 100%;
+				height: 20vh;
+				margin: 10px 0;
+			}
+
+			.displayNone {
+				display: none !important;
+			}
+
+			.component-frame {
+				stroke-width: 1;
+				stroke-opacity: 1;
+				fill-opacity: 0.01;
+			}
+
+			.component-path {
+				stroke-width: 2;
+				stroke-opacity: 1;
+				fill: #000;
+			}
+
+			.component-path-arrow-head {
+				stroke: none !important;
+			}
+
+			.component-path-text {
+				text-anchor: middle;
+				font-size: 8pt;
+				stroke-width: 0px;
+			}
+
+			.component-target {
+				stroke-width: 2;
+				stroke-opacity: 1;
+				fill-opacity: 1;
+			}
+
+			.component-target-text {
+				text-anchor: middle;
+				font-size: 10pt;
+				stroke-width: 0px;
+			}
+
+			.component-annotation {
+				text-anchor: middle;
+				font-size: 8pt;
+				stroke-width: 0px;
+				fill: #f66;
+			}
+
+			.connector-frame {
+				stroke: none;
+				fill: none;
+			}
+
+			.connector-path {
+				stroke: #f00;
+				stroke-width: 2;
+				stroke-opacity: 1;
+				fill: #f00;
+			}
+
+			.planned {
+				stroke: #999;
+				fill: #999;
+			}
+
+			.planned .component-frame {
+				stroke-dasharray: 2;
+			}
+
+			.planned .component-target {
+				fill: #ccc;
+			}
+
+			.unplanned {
+				stroke: #f00;
+				fill: #f00;
+			}
+
+			.unplanned .component-frame {
+				stroke-opacity: 0;
+				fill: #f00;
+				fill-opacity: 0.1;
+			}
+
+			.unplanned .component-path, .unplanned .component-path-arrow-head {
+				stroke: #f00;
+				fill: #f00;
+			}
+
+			.executed {
+				stroke: #000;
+				font: #f00;
+			}
+
+			.executed .component-frame {
+				fill: #0f0;
+			}
+
+			.executed .component-target {
+				stroke: #090;
+				fill: #9f9;
+			}
+		</style>
+	</head>
+	
+	<body>
+		<header class= "ui container">
+			<h1 class="ui header">
+				<i class="settings icon"></i>
+				<div class="content">
+					AccOunt Viewer
+				</div>
+			</h1>
+		</header>
+
+		<main class="ui container">
+			<textarea id="account-text"></textarea>
+			<div class="ui hidden divider"></div>
+			<div>
+				<button class="fluid ui primary button" onclick="compile()">↓ compile ↓</button>
+			</div>
+			<div class="ui hidden divider"></div>
+			<textarea id="legs-data"></textarea>
+			<div class="ui hidden divider"></div>
+			<div>
+				<button class="fluid ui primary button" onclick="visualize()">↓ visualize ↓</button>
+			</div>
+			<div class="ui hidden divider"></div>
+			<div id="legs"></div>
+			<div class="ui hidden divider"></div>
+			<div>
+				<button id="clear-button" class="fluid ui primary button displayNone" onclick="clearLegs()">clear</button>
+			</div>
+			<div class="ui hidden divider"></div>
+		</main>
+
+		<script src="https://cdn.jsdelivr.net/npm/jquery@3.3.1/dist/jquery.min.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/fomantic-ui@2.8.8/dist/semantic.min.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/@svgdotjs/svg.js@3.0/dist/svg.min.js"></script>
+		<script>
+			const urlCompileAccOunt = "/compile/accOunt"
+			const componentWidth = 150
+			const componentHeight = 100
+
+			async function compile() {
+				const text = document.querySelector("#account-text").value
+
+				const response = await fetch(urlCompileAccOunt, {
+					method: "POST",
+					headers: {
+						'Content-Type': 'application/x.accOunt'
+					},
+					body: text
+				})
+
+				// response.
+				// content = response.body.getReader().read().then(( {done, value} ) => {
+				// 	if (done) {
+				// 		alert(value)
+				// 		return value
+				// 	}
+				// })
+				// alert(
+				// 	// Promise.resolve( response)
+				// 	content
+				// 	// response.body
+				// 	)
+
+				response.json().then(json =>document.getElementById("legs-data").value = JSON.stringify(json, null, 4))
+				// document.querySelector("legs-data").value = response.json()
+			}
+
+			function setupSVG(xSize, ySize) {
+				return SVG().addTo('#legs').size(componentWidth*xSize, componentHeight*ySize)
+			}
+
+			function drawComponent(draw, x, y, data) {
+				const g = draw.group()
+					.addClass(data.type)
+
+				const frame = g.rect(componentWidth, componentHeight)
+					.addClass("component-frame")
+
+				const path = g.line(0, componentHeight/2, componentWidth*2/3, componentHeight/2)
+					.addClass("component-path")
+
+				path.marker("end", 6, 6, add => {
+					add.addClass(data.type)
+					add.polygon("0,0 0,6 6,3").addClass("component-path-arrow-head")
+				})
+
+				const pathText = g.text(data.path)
+					.x(componentWidth/3).y(componentHeight/2 + componentHeight/20)
+					.addClass("component-path-text")
+
+				const target = g.circle(componentWidth/6)
+					.cx(componentWidth*2/3 + componentWidth/6).cy(componentHeight/2)
+					.addClass("component-target")
+
+				const targetText = g.text(add => {
+					const text = data.target
+					for (var i = 0; i < text.length/8; i++) {
+						add.tspan(text.substr(i*8, 8)).newLine()
+					}
+				})
+				targetText.x(componentWidth*2/3 + componentWidth/6).y(componentHeight/10)
+					.addClass("component-target-text")
+
+				const annotationText = g.text(add => {
+					const text = data.annotation
+					if (text) {
+						// 折り返し
+						const width = 8 
+						for (var i = 0; i < text.length/width; i++) {
+							add.tspan(text.substr(i*width, width)).newLine()
+						}
+					}
+				})
+				annotationText.x(componentWidth/2).y(componentHeight*4/5)
+				annotationText.addClass("component-annotation")
+				
+				g.move(x*componentWidth, y*componentHeight)
+			}
+
+			function drawComponents(draw, components) {
+				components.forEach(component => drawComponent(draw, component.x, component.y, component.data))
+			}
+
+			function drawConnector(draw, x1, y1, x2, y2) {
+				const differX = x2 - x1
+				const differY = y2 - y1
+
+				const g = draw.group()
+
+				const frame = g.rect(componentWidth, componentHeight)
+					.addClass("connector-frame")
+
+				const path = g.line(componentWidth*2/3 + componentWidth/6, componentHeight/2, differX*componentWidth, differY*componentHeight + componentHeight/2)
+					.addClass("connector-path")
+
+				g.move(x1*componentWidth, y1*componentHeight)
+			}
+
+			function drawConnectors(draw, connectors) {
+				connectors.forEach(connector => drawConnector(draw, connector.x1, connector.y1, connector.x2, connector.y2))
+			}
+
+			function drawLeg(leg) {
+				const draw = setupSVG(leg.xSize, leg.ySize)
+				drawConnectors(draw, leg.connectors)
+				drawComponents(draw, leg.components)
+			}
+
+			function clearLegs() {
+				document.getElementById("legs").textContent = ""
+				document.querySelector("#clear-button").classList.add("displayNone")
+			}
+
+			function visualize() {
+				clearLegs()
+				const data = document.getElementById("legs-data").value
+				drawLeg(JSON.parse(data))
+
+				document.querySelector("#clear-button").classList.remove("displayNone")
+			}
+			
+			const sample = {
+				xSize: 6,
+				ySize: 2,
+				components: [
+					{x: 0, y:0, data: {"type": "executed", "target": "川の終わり", "path": "川に沿う"}},
+					{x: 1, y:0, data: {"type": "executed", "target": "岩", "path": "尾根線に沿う"}},
+					{x: 2, y:0, data: {"type": "executed", "target": "道", "path": "直進"}},
+					{x: 3, y:0, data: {"type": "planned", "target": "半ば開けた土地と開けた土地の変わり目", "path": "道に沿う", "annotation": "確認できない"}},
+					{x: 4, y:0, data: {"type": "planned", "target": "目的地", "path": "直進"}},
+					{x: 3, y:1, data: {"type": "unplanned", "target": "道と道の分岐", "path": "道に沿う"}},
+					{x: 4, y:1, data: {"type": "executed", "target": "道の終わり", "path": "道に沿う"}},
+					{x: 5, y:1, data: {"type": "executed", "target": "目的地", "path": "沢底に沿う"}},
+				],
+				connectors: [
+					{x1: 2, y1: 0, x2: 3, y2: 1}
+				]
+			}
+
+			document.addEventListener('DOMContentLoaded', () => {
+				document.getElementById("legs-data").value = JSON.stringify(sample, null, 4)
+			})
+		</script>
+	</body>
+</html>
