@@ -180,8 +180,10 @@ class Compiler
     ######### integrate events ########
     def to_move(action)
       case action
-        in :'plan'
+        in :'as-plan'
           :straight
+        in [:go, _]
+          action
         in [move, _]
           move
         in move
@@ -194,6 +196,9 @@ class Compiler
 
       current_row = 0
       current_trace = 0
+      status = true  # プラン通り?
+      unplanned_tiles = []
+
       event_sxps = events_sxp[1..-1]
       event_sxps.each { |event|
         case event
@@ -202,22 +207,37 @@ class Compiler
               in [:done, trace_id, conf] if trace_id.integer? && conf.integer?
                 @table[trace_id][:data]["type"] = "executed"
                 current_trace = trace_id
+
+                if (not status)
+                  status = true
+                  plans_compiled[current_row].prepend(unplanned_tiles).flatten!
+                  # PP.pp(plans_compiled[current_row])
+                  unplanned_tiles = []
+                end
               in :unrelated
                 # このeventをフレームに追加する
                 # 1. IDを与える
-                # 2. traceを生成して、compile_traceに食わせる ~~> tableの後進とフレームデータの生成ができる
+                # 2. traceを生成して、compile_traceに食わせる ~~> tableの更新とフレームデータの生成ができる
                 # 3. 生成したフレームをしかるべきところに追加する
                 id = @fresh.get()
                 trace = [id, to_move(action_sxp), recognize_sxp]
                 trace_compiled = compile_trace(trace)
                 @table[id][:data]["type"] = "unplanned"
-                current_row += 1
-                plans_compiled[current_row].prepend trace_compiled
+                # plans_compiled[current_row].prepend trace_compiled
+                PP.pp(trace_compiled)
+                unplanned_tiles.append trace_compiled
+                PP.pp(unplanned_tiles)
+                current_row += 1 if status
+                status = false
 
                 # レイアウトのための情報
-                # 
                 @layoutX[id] = current_trace
                 current_trace = id
+            end
+            case action_sxp
+              in [_, [:unconfirmed, [:plan, n]]]
+                @table[n][:data]["annotation"] = "確認できない"
+            else nil
             end
         end
       }
@@ -241,10 +261,10 @@ class Compiler
 
     def get_tile(tile_blocks, id)
       tile_blocks.flatten.find{ |tile|
-        print("get_item\nid: ")
-        print(id)
-        print("\nsearch for: ")
-        print(tile[:id])
+        # print("get_item\nid: ")
+        # print(id)
+        # print("\nsearch for: ")
+        # print(tile[:id])
         tile[:id].eql?(id)} || (raise "AccOunt: internal error. get_tile")
     end
 
@@ -262,7 +282,8 @@ class Compiler
         y = y_size
         for tile in block do
           # tile が unplanned場合
-          print("\nlast_id: #{last_id}\n")
+          # print("\nlast_id: #{last_id}\n")
+          # print(tile)
           if tile[:data].key?("type") && tile[:data]["type"].eql?("unplanned")
             x = deref_layout(tile[:id])
 
@@ -274,10 +295,10 @@ class Compiler
           tile[:y] = y
           @layoutX[tile[:id]] = [:x, x]
           x += 1
-          print(@table[tile[:id]])
+          # print(@table[tile[:id]])
           last_id = tile[:id] if ["executed", "unplanned"].include?(@table[tile[:id]][:data]["type"])
         end
-        x_size = [x_size, block.length].max
+        x_size = [x_size, x + 1].max
         y_size += 1  # この時点では未使用の列
       end
 
@@ -349,8 +370,65 @@ Ex1 = "
       (done 9 3)]
       )
 )"
-Ex2 = "(leg 3 hoge fuga)"
 
+Ex2 = "(leg 1
+(plans
+  (plan 初期プラン
+    [1
+      (go 道)
+      (get (分岐 道 川))]
+    [2
+      (go 川)
+      (get (終わり 川))]
+    [3
+      (go (線 尾根))
+      (get 岩)]
+    [4    ;; hogehoge
+      straight
+      (get 道)]
+    [5
+      (go 道)
+      (get (変わり目 半ば開けた土地 開けた土地))]
+    [6
+      straight
+      (get 目的地)]
+    )
+  (plan 新しいプラン
+    [8
+      (go 道)
+      (get (終わり 道))]
+    [9
+      (go (線 沢))
+      (get 目的地)]
+    ))
+(events
+    [1
+      straight 
+      (get (plan 3))
+      (done 3 3)]
+    [2
+      as-plan
+      (get 道)
+      (done 4 3)]
+    [3
+      ((go 道)
+       (unconfirmed (plan 5)))
+      (get (分岐 道 道))
+      unrelated]
+    [10
+       (go (線 沢))
+       (get (分岐 (線 沢) 川))
+       unrelated]
+    [5
+     as-plan
+     (get (plan 8))
+     (done 8 3)]
+    [6
+      (go (線 沢))
+      (get 目的地)
+      (done 9 3)]
+      )
+)"
 
 def test()
   s_exp = C.scan(Ex1)
