@@ -34,7 +34,7 @@ class Compiler
           raise "AccOunt: internal error.\n  deref_layout"
         in new_id if new_id.integer?
           print("rec; #{new_id}\n")
-          deref_layout(new_id)
+          deref_layout(new_id) + 1
       else raise "AccOunt: internal error.\n  deref_layout"
       end
     end
@@ -49,7 +49,7 @@ class Compiler
       , :目的地]
     Es = [:低い, :浅い, :深い, :植物の茂っている, :開けた, :岩の・岩状の, :湿地状の, :砂地状の, :針葉樹の, :広葉樹の, :倒れた・壊れた]
     Gs = [:側, :ふち, :部分, :内側の角, :外側の角, :突端, :曲がり,\
-       :終わり, :上の部分, :下の部分, :上, :下, :根本, :傾斜の変わり目, :定まる線]
+       :終わり, :上の部分, :下の部分, :上, :下, :根本, :傾斜の変わり目, :線]
     G2s = [:交点, :分岐, :間, :変わり目]
 
     #########################################
@@ -109,10 +109,10 @@ class Compiler
         # in [trace_id, :straight, finish_obj_sxp]
         #   path = "直進する"
         #   target = compile_obj(finish_obj_sxp)
-
         # TODO in ... 軌跡ID
-        data = {id: trace_id ,:data => {"target": target, path: path, "type"=>"planned"}}
-        @table[trace_id] = data
+
+          data = {id: trace_id ,:data => {"target"=> target, path: path, "type"=>"planned"}}
+          @table[trace_id] = data
       else raise "AccOunt: syntax error.\n  Expect: trace, but found #{trace}"
       end
       return data
@@ -239,22 +239,43 @@ class Compiler
 
     ############# Layout ####################
 
+    def get_tile(tile_blocks, id)
+      tile_blocks.flatten.find{ |tile|
+        print("get_item\nid: ")
+        print(id)
+        print("\nsearch for: ")
+        print(tile[:id])
+        tile[:id].eql?(id)} || (raise "AccOunt: internal error. get_tile")
+    end
+
     def layout_bloks(tile_blocks)
       y_size = 0
       x_size = 0
 
+      connectors = []
       # Invaliants
       #  - x_size = その時点までで最大のx方向の大きさ
       #  - y_size = 使用済みの列の直後のインデックス
+      last_id = nil
       for block in tile_blocks do
         x = 0
         y = y_size
         for tile in block do
-          x = deref_layout(tile[:id]) if tile[:data].key?("type") && tile[:data]["type"].eql?("unplanned")
+          # tile が unplanned場合
+          print("\nlast_id: #{last_id}\n")
+          if tile[:data].key?("type") && tile[:data]["type"].eql?("unplanned")
+            x = deref_layout(tile[:id])
+
+            # Draw connector
+            prev_tile = get_tile(tile_blocks, last_id)
+            connectors.append({x1: prev_tile[:x], y1: prev_tile[:y], x2: x, y2: y})
+          end
           tile[:x] = x
           tile[:y] = y
           @layoutX[tile[:id]] = [:x, x]
           x += 1
+          print(@table[tile[:id]])
+          last_id = tile[:id] if ["executed", "unplanned"].include?(@table[tile[:id]][:data]["type"])
         end
         x_size = [x_size, block.length].max
         y_size += 1  # この時点では未使用の列
@@ -262,7 +283,7 @@ class Compiler
 
       {xSize: x_size, ySize: y_size,\
        components: tile_blocks.flatten ,\
-       connectors: []}
+       connectors: connectors}
     end
 
     ################ end Layout ################
@@ -284,7 +305,7 @@ Ex1 = "
       (go 川)
       (get (終わり 川))]
     [3
-      (go (定まる線 尾根))
+      (go (線 尾根))
       (get 岩)]
     [4    ;; hogehoge
       straight
@@ -301,7 +322,7 @@ Ex1 = "
       (go 道)
       (get (終わり 道))]
     [9
-      (go (定まる線 沢))
+      (go (線 沢))
       (get 目的地)]
     ))
 (events
@@ -323,7 +344,7 @@ Ex1 = "
      (get (plan 8))
      (done 8 3)]
     [6
-      (go (定まる線 沢))
+      (go (線 沢))
       (get 目的地)
       (done 9 3)]
       )
