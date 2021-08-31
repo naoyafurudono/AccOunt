@@ -3,20 +3,17 @@ require 'sxp'
 require 'json'
 require 'pp'
 
-class FreshID
-  def initialize
-    @count = 10000
-  end
-  def get()
-    @count += 1
-  end
-end
-
 class Compiler
-
+    class FreshID
+      def initialize
+        @count = 10000
+      end
+      def get()
+        @count += 1
+      end
+    end
     def initialize()
       @env_trace = {}
-      @env_event = {}
       @table = {}
       @fresh = FreshID.new
       @layoutX= {}  # TraceID => [:x, N] | TraceID
