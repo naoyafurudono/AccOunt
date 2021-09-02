@@ -1,9 +1,7 @@
-# encoding: utf-8
 require 'sxp'
-require 'json'
 require 'pp'
 
-class Compiler
+class CompilerOld
     class FreshID
       def initialize
         @count = 10000
@@ -343,7 +341,7 @@ end
 
 #### For test ####
 
-C = Compiler.new
+C = CompilerOld.new
 
 Ex1 = "
 (leg 1

@@ -134,6 +134,10 @@
 				<button class="fluid ui primary button" onclick="compile()">↓ compile ↓</button>
 			</div>
 			<div class="ui hidden divider"></div>
+			<div>
+				<p id="text"></p>
+			</div>
+			<div class="ui hidden divider"></div>
 			<textarea id="legs-data"></textarea>
 			<div class="ui hidden divider"></div>
 			<div>
@@ -152,36 +156,33 @@
 		<script src="https://cdn.jsdelivr.net/npm/fomantic-ui@2.8.8/dist/semantic.min.js"></script>
 		<script src="https://cdn.jsdelivr.net/npm/@svgdotjs/svg.js@3.0/dist/svg.min.js"></script>
 		<script>
-			const urlCompileAccOunt = "/compile/accOunt"
+			const urlCompileAccOuntLegs = "/compile/accOunt/legs"
+			const urlCompileAccOuntText = "/compile/accOunt/text"
 			const componentWidth = 150
 			const componentHeight = 100
 
-			async function compile() {
+			function compile() {
 				const text = document.querySelector("#account-text").value
 
-				const response = await fetch(urlCompileAccOunt, {
+				fetch(urlCompileAccOuntLegs, {
 					method: "POST",
 					headers: {
 						'Content-Type': 'application/x.accOunt'
 					},
 					body: text
 				})
-
-				// response.
-				// content = response.body.getReader().read().then(( {done, value} ) => {
-				// 	if (done) {
-				// 		alert(value)
-				// 		return value
-				// 	}
-				// })
-				// alert(
-				// 	// Promise.resolve( response)
-				// 	content
-				// 	// response.body
-				// 	)
-
-				response.json().then(json =>document.getElementById("legs-data").value = JSON.stringify(json, null, 4))
-				// document.querySelector("legs-data").value = response.json()
+					.then(response => response.json())
+					.then(json => document.getElementById("legs-data").value = JSON.stringify(json, null, 4))
+				
+				fetch(urlCompileAccOuntText, {
+					method: "POST",
+					headers: {
+						'Content-Type': 'application/x.accOunt'
+					},
+					body: text
+				})
+					.then(response => response.text())
+					.then(text => document.getElementById("text").textContent = text)
 			}
 
 			function setupSVG(xSize, ySize) {

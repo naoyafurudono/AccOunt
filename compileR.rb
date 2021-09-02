@@ -16,42 +16,23 @@ class Top
   def json()
     compile.json
   end
+
+  def text()
+    compile.text
+  end
 end
 
 # Abstract
 class Compiler
 
-  # frame と content を計算してインスタンス変数に束縛する
-  # frame : [自身のID, [子供のframe]] (Array)
-  # content : {子供Aのtag => 子供Aのcontent, ...} (Hash)
   def initialize(sxp)
-    # raise "Compiler class is abstract, but init have been called"
     raise "ERROR" unless sxp
     @sxp = sxp
-    # compile (ツリーを作る。子供であることの管理はここではしない。子供はインスタンス変数にもつ)
   end
-
-  # def frame()
-  #   @frame = [@id, @children.map{|child| child.frame}]
-  # end
-
-  # def content
-  #   self.children_tag.each{ |tag| 
-  #     @content ||= {}
-  #     @content[tag] = send(tag)
-  #   }
-  # end
-
-  # def self.children_tag
-  #   []
-  # end
-
-  # def ir()
-  #   @ir ||= @sxp
-  # end
 
   def json()
     "json undef #{self}"
+    ""
   end
   # def children()
   #   @children = ir()
@@ -67,10 +48,6 @@ class Compiler
 end
 
 class LegC < Compiler
-  # def self.children_tag
-  #   [:plans, :events]
-  # end
-
   def initialize(sxp)
     super
     case @sxp
@@ -99,31 +76,148 @@ class LegC < Compiler
 
   def contents() {p: @plans.contents, e: @events.contents} end
 
+  # frame はconstract_matrixのコメントで書かれた構造
+  def number_matrix(frame)
+    x, y, next_x = 0, 0, 0
+    connectors = []
+    matrix = frame.map{ |tiles| 
+      executed = false
+      x = next_x
+      tmp = tiles.map{ |tile|
+        tmp = tile.append({x: x, y: y})
+        if executed && (not tile_executed?(tile)) then
+          next_x = x
+          connectors.append({x1: x-1, y1: y, x2:x, y2:y+1})
+        end
+        x += 1
+        executed = (not tile[1].empty?)
+        tmp
+      }
+      y += 1
+      tmp
+    }
+    [matrix, x, y, connectors]
+  end
+
+  # Frame = [{e:[{id: --, rel2: --} ...], p: [ID, [ID...]]}...]
+  def constract_matrix(frame)
+    frame.map{ |h| merge_plan_event(h) }
+  end
+
+  def fresh() 
+    @fresh ||= 100000
+    @fresh += 1 
+  end
+
+  # h: {e:[{id: --, rel2: --} ...], p: [ID, [ID...]]}
+  def merge_plan_event(h)
+    # [[pid, [e...]]...]  それぞれの e rel2 pid
+    pairs = h[:p][1].map{ |i| [i, h[:e].filter{ |e| e[:rel2] == i }]}
+    # eの列の先頭部分に存在しうる、unplannedなeventたち
+    floated_es = h[:e] - pairs.map{ |pair| pair[1]}.flatten
+    # 対応するペアを持たないイベントに、プレイスホルダを対応させておく
+    # floated_es.map{ |e| [fresh(), [e]] }.concat(pairs)
+    floated_es.map{ |e| [nil, [e]] }.concat(pairs)
+  end
+
+  def tile_executed?(t)
+        not t[1].empty?
+  end
+
+  # Tile -> {id: , rel2: }
+  def tile_event(t)
+    t[1][0]
+  end
+
+  def tile_plan(t)
+    t[0]
+  end
+
+  def tile_place(t)
+    t[2]
+  end
+
+  def extract_eenv(ev_hash, eenv)
+    event = eenv.find {|e| e.id == ev_hash[:id]}
+  end
+
+  def extract_penv(p_id, penv)
+    penv.values.flatten.find{ |trace| trace.id == p_id }
+  end
+  
   def json()
-    plans_frame = @plans_ir.json 
+    layout = number_matrix(constract_matrix(frame))
 
-    puts "\n\n plans rows"
-    PP.pp plans_frame
+    matrix = layout[0]
+    x = layout[1]
+    y = layout[2]
+    connectors = layout[3]
 
-    puts "\n\n==========================================\n\n"
+    env = contents()
+    penv = env[:p]
+    eenv = env[:e]
 
-    events_frame = @events_ir.json
+    PP.pp matrix
+    components = matrix.flatten(1).map do |t|
+      if tile_plan(t).nil?
+        then
+         type = "unplanned" 
+         event = extract_eenv(tile_event(t), eenv)
+         j = event.json
+         target = j[:target]
+         path =j[:path]
+        #  annotation = 
+      else
+        type = tile_executed?(t) ? "executed" : "planned"
+        plan = extract_penv(tile_plan(t), penv)
+        j = plan.json
+        target = j[:target]
+        path =j[:path]
+      end
+      {x: tile_place(t)[:x], y: tile_place(t)[:y], data: {\
+        type: type, target: target, path: path}}
+    end
+    {xSize: x, ySize: y, components: components, connectors: connectors}
+  end
 
-    p_tiles = @plans_ir.tiles
-    e_tiles = @events_ir.tiles
-    event_pos = 0
-    fresh_id = 100000
-    # while true
+  def text()
+    frame = frame()
+    contents = contents()
+    p_cont = contents[:p]
+    e_cont = contents[:e]
+
+    res = "レッグ#{@id}では" 
+
+    res << frame.map{ |h| 
+      plan_name, plan_ids = h[:p]
+      PP.pp h[:e]
+      unplanned_ids, planned_ids = h[:e].partition{|ev| ev[:rel2].nil? }
+      PP.pp unplanned_ids
+      traces = p_cont[plan_name]
+      tmp_msg = ""
 
       
+      unless unplanned_ids.empty?
+        tmp_msg << "ここでプランから外れて次のような行動をとった\n  "
+        tmp_msg << unplanned_ids.map{ |ev| 
+          # PP.pp ev
+          # PP.pp unplanned_ids
+          ev[:id].to_s.to_s + ". " + e_cont.find{|e| e.id == ev[:id] }.text
+        }.join("\n  ") << "\nそこで"
+      end
 
-      
-    # end
+      tmp_msg << plan_name.to_s
+      tmp_msg << "として以下を考えた\n  "
+      tmp_msg << plan_ids.map{ |trace_id| 
+        trace_id.to_s + ". " + traces.find{|t| t.id == trace_id }.text
+      }.join("\n  ") << "\n"
 
-
-    puts "event seq"
-    PP.pp events_frame
-    ## todo 構造を作る
+      tmp_msg << "このプランのもとで次のように実際の行動をとった\n  "
+      tmp_msg << planned_ids.map{ |ev| 
+        ev[:id].to_s.to_s + ". " + e_cont.find{|e| e.id == ev[:id] }.text
+      }.join("\n  ") << "\n"
+    
+    }.join("")
   end
 end
 
@@ -189,15 +283,23 @@ class TraceC < Compiler
     end
   end
 
+  def id()
+    @id
+  end
+
   def frame() @id end
 
   # () -> Hash (like JSON)
   def json()
-    Tile.new({\
-        "type" => "planned"\
-      , "target" => @recognize_ir.json\
-      , "path" => @move_ir.json\
-    }, @id)
+    {\
+        :type => "planned"\
+      , :target => @recognize.json\
+      , :path => @move.json\
+    }
+  end
+
+  def text()
+    @move.text + "。" + @recognize.text + "を確認する"
   end
 end
 
@@ -217,11 +319,12 @@ class MoveC < Compiler
   def json()
     case @tag
     when :go
-      @linear_obj.json << "に沿う"
+      @obj.json << "に沿う"
     when :straight
       "直進する"
     end
   end
+  def text() json end
 end
 
 class RecognizeC < Compiler
@@ -249,6 +352,8 @@ class RecognizeC < Compiler
       "まっすぐ"
     end
   end
+
+  def text() json end
 end
 
 class ObjC < Compiler
@@ -256,24 +361,32 @@ class ObjC < Compiler
     super
     case @sxp
       in [e_sxp, obj_sxp1] if Es.related?(e_sxp)
-        @tag = :e
+        # @tag = :e
         @obj = Es.new(@sxp)
       in [g_sxp, obj_sxp1] if Gs.related?(g_sxp)
-        @tag = :g
+        # @tag = :g
         @obj = Gs.new(@sxp)
       in [g2_sxp, obj1, obj2] if G2s.related?(g2_sxp)
-        @tag = :g2
+        # @tag = :g2
         @obj= G2s.new(@sxp)
       in [:plan, n] if id?(n)  # TODO implement
         @tag = :plan
         @obj = Ref.new(n)
       in d_sxp
-        @tag = :d
+        # @tag = :d
         @obj = Ds.new(d_sxp)
       # else error('syntax error', 'object', @sxp)
-      end
     end
   end
+
+  def json()
+    @obj.json
+  end
+    
+  def text()
+    @obj.text
+  end
+end
 
 class EventsC < Compiler
   def initialize(sxp)
@@ -328,17 +441,24 @@ class EventC < Compiler
       end
   end
 
+  def id()
+    @id
+  end
   def frame() {id: @id, rel2: @rel2plan.rel2 } end
 
   def unplanned?() @rel2plan.unplanned? end
 
   def json()
     path, annotation = @action.json
-    Tile.new({\
-      "type" => @rel2plan.type\
-      , "target" => @recog.json\
-      , "path" => path\
-      , "annotation" => annotation}, @id)
+    {\
+      :type => @rel2plan.type\
+      , :target => @recog.json\
+      , :path => path\
+      , :annotation => annotation}
+  end
+
+  def text()
+    @action.text + "。" + @recog.text + "。"
   end
 end
 
@@ -364,6 +484,15 @@ class ActionC < Compiler
       return "プラン通り", nil
     when :move
       return @move.json, (@aware ? @aware.json : nil)
+    end
+  end
+
+  def text()
+    case @tag
+    when :'as-plan'
+      "プラン通り"
+    when :move
+      @move.text
     end
   end
 end
@@ -427,7 +556,7 @@ class ObjDescripter < Compiler
 
   def initialize(sxp)
     super
-    @descripter = nil
+    @descripter = ""
     @sub_objs = []
   end
 
@@ -436,7 +565,7 @@ class ObjDescripter < Compiler
   end
 
   def text()
-    @sub_objs.map {|obj| obj.text}.join("と") + "の" + @descripter.to_s
+    @sub_objs.map {|obj| obj.text}.join("と") + (@sub_objs.empty? ? "" : "の") + @descripter.to_s
   end
 end
 
@@ -512,6 +641,10 @@ class G2s < ObjDescripter
 end
 
 class Ref < ObjDescripter
+  def initialize(n)
+    super
+    @descripter = "プラン#{n}で記述したところ"
+  end
 end
 
 
@@ -524,7 +657,7 @@ class Tile
   end
   
   def type()
-    @json_hash["type"].intern
+    @json_hash[:type].intern
   end
 
   attr_reader :id
