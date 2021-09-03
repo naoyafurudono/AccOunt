@@ -453,7 +453,7 @@ class EventC < Compiler
   end
 
   def text()
-    @action.text + "。" + @recog.text + "。"
+    @action.text + "。" + @recog.text + "を確認。"
   end
 end
 
