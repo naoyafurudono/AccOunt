@@ -138,16 +138,16 @@
 				<p id="text"></p>
 			</div>
 			<div class="ui hidden divider"></div>
-			<textarea id="legs-data"></textarea>
-			<div class="ui hidden divider"></div>
-			<div>
+			<div id="legs-data"></div>
+			<!-- <div class="ui hidden divider"></div> -->
+			<!-- <div>
 				<button class="fluid ui primary button" onclick="visualize()">↓ visualize ↓</button>
-			</div>
+			</div> -->
 			<div class="ui hidden divider"></div>
 			<div id="legs"></div>
 			<div class="ui hidden divider"></div>
 			<div>
-				<button id="clear-button" class="fluid ui primary button displayNone" onclick="clearLegs()">clear</button>
+				<button id="clear-button" class="fluid ui primary button displayNone" onclick="clearView()">clear</button>
 			</div>
 			<div class="ui hidden divider"></div>
 		</main>
@@ -173,6 +173,7 @@
 				})
 					.then(response => response.json())
 					.then(json => document.getElementById("legs-data").value = JSON.stringify(json, null, 4))
+					.then(_ => visualize())
 				
 				fetch(urlCompileAccOuntText, {
 					method: "POST",
@@ -182,7 +183,8 @@
 					body: text
 				})
 					.then(response => response.text())
-					.then(text => document.getElementById("text").textContent = text)
+					.then(text => document.getElementById("text").innerHTML = text.replaceAll('\n', '<br>'))
+
 			}
 
 			function setupSVG(xSize, ySize) {
@@ -266,13 +268,14 @@
 				drawComponents(draw, leg.components)
 			}
 
-			function clearLegs() {
+			function clearView() {
 				document.getElementById("legs").textContent = ""
+				document.getElementById("text").innerHTML = ""
 				document.querySelector("#clear-button").classList.add("displayNone")
 			}
 
 			function visualize() {
-				clearLegs()
+				clearView()
 				const data = document.getElementById("legs-data").value
 				drawLeg(JSON.parse(data))
 

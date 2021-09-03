@@ -194,24 +194,25 @@ class LegC < Compiler
       tmp_msg = ""
       
       unless unplanned_ids.empty?
-        tmp_msg << "ここでプランから外れて次のような行動をとった\n  "
+        tmp_msg << "ここでプランから外れて次のような行動をとった\n\n  "
         tmp_msg << unplanned_ids.map{ |ev| 
           ev[:id].to_s.to_s + ". " + e_cont.find{|e| e.id == ev[:id] }.text
-        }.join("\n  ") << "\nそこで"
+        }.join("\n  ") << "\n\nそこで"
       end
 
       tmp_msg << plan_name.to_s
-      tmp_msg << "として以下を考えた\n  "
+      tmp_msg << "として以下を考えた\n\n  "
       tmp_msg << plan_ids.map{ |trace_id| 
         trace_id.to_s + ". " + traces.find{|t| t.id == trace_id }.text
-      }.join("\n  ") << "\n"
+      }.join("\n  ") << "\n\n"
 
-      tmp_msg << "このプランのもとで次のように実際の行動をとった\n  "
+      tmp_msg << "このプランのもとで次のように実際の行動をとった\n\n  "
       tmp_msg << planned_ids.map{ |ev| 
         ev[:id].to_s.to_s + ". " + e_cont.find{|e| e.id == ev[:id] }.text
-      }.join("\n  ") << "\n"
+      }.join("\n  ") << "\n\n"
     
     }.join("")
+    res << "レッグ#{@id}の説明は以上。\n"
   end
 end
 
@@ -597,6 +598,10 @@ class Es < ObjDescripter
       @sub_objs = [ObjC.new(sub_obj)]
     end
   end
+
+  def text()
+    @descripter.to_s + @sub_objs[0].text
+  end
 end
 
 class Gs < ObjDescripter
@@ -648,7 +653,7 @@ require './compiler'
 # end
 
 def l
-  t = Top.new(Ex1)
+  t = Top.new(Ex3)
   t.compile
   t.leg
 end
