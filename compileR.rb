@@ -157,7 +157,6 @@ class LegC < Compiler
     penv = env[:p]
     eenv = env[:e]
 
-    PP.pp matrix
     components = matrix.flatten(1).map do |t|
       if tile_plan(t).nil?
         then
@@ -190,18 +189,13 @@ class LegC < Compiler
 
     res << frame.map{ |h| 
       plan_name, plan_ids = h[:p]
-      PP.pp h[:e]
       unplanned_ids, planned_ids = h[:e].partition{|ev| ev[:rel2].nil? }
-      PP.pp unplanned_ids
       traces = p_cont[plan_name]
       tmp_msg = ""
-
       
       unless unplanned_ids.empty?
         tmp_msg << "ここでプランから外れて次のような行動をとった\n  "
         tmp_msg << unplanned_ids.map{ |ev| 
-          # PP.pp ev
-          # PP.pp unplanned_ids
           ev[:id].to_s.to_s + ". " + e_cont.find{|e| e.id == ev[:id] }.text
         }.join("\n  ") << "\nそこで"
       end
@@ -644,82 +638,6 @@ class Ref < ObjDescripter
   def initialize(n)
     super
     @descripter = "プラン#{n}で記述したところ"
-  end
-end
-
-
-###### JSON ######
-
-class Tile
-  def initialize(hash, id)
-    @json_hash = hash
-    @id = id 
-  end
-  
-  def type()
-    @json_hash[:type].intern
-  end
-
-  attr_reader :id
-end
-
-class Row
-  def initialize(tile_arr)
-     @tile_arr = tile_arr; @prep = []
-     @connectors = []
-  end
-
-  def add2prepend(tile)
-    @prep.append(tile)
-  end
-
-  def get()
-    @tile_arr = @prep.concat(@tile_arr)
-    connect!(@prep.append(@tile_arr[0]))
-    @prep = []
-    print @connectors, "\n"
-    @tile_arr
-  end
-
-  def connect!(tiles)
-    return unless tiles.length >= 2
-    (@tile_arr.length - 2).times{ |i|
-      e = i + 1
-      ti = @tile_arr[i]
-      te = @tile_arr[e]
-      @connectors << {x1: ti.x, y1: ti.y, x2: te.x, y2: te.y}
-    }
-  end
-
-  def update(tile)
-    puts @tile_arr.find{|base_tile| base_tile.id == tile.id}
-  end
-end
-
-# グラフの表現方法について
-# すべてのtileは直後のtileを知っていて
-# すべてのrowは
-class Matrix
-  # @rowsとevent_tilesから、このmatrixのトポロジーを定める
-  def integrate_events(event_tiles)
-    pos = 0
-    planed = true
-
-    event_tiles.each do |tile|
-      case tile.type
-      when :executed
-        planed = true
-      when :unplanned
-        if planed
-          pos += 1
-          planed = false
-        end
-        @rows[pos].add2prepend(tile)
-      end
-      @rows.each {|r| r.update(tile)}
-    end
-
-    return @rows.map{|r| r.get}
   end
 end
 
