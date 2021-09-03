@@ -12,9 +12,13 @@ end
 
 post '/compile/accOunt/text', provides: 'application/x.accOunt' do
     content_type :'text/plain'
-    T = Top.new(request.body.read)
-    T.compile
-    T.text
+    begin
+      t = Top.new(request.body.read)
+      t.compile
+      t.text
+    rescue => exception
+      "AccOunt: Failed to generate explanation"
+    end
 end
 
 post '/compile/accOunt/legs', provides: 'application/x.accOunt' do
