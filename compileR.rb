@@ -652,6 +652,8 @@ require './compiler'
 #   Top.new(Ex1)
 # end
 
+require './examples/loader'
+
 def l
   t = Top.new(Ex3)
   t.compile
