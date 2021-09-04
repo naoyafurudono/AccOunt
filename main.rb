@@ -1,5 +1,5 @@
 require 'sinatra'
-require 'sinatra/reloader'  # for dev: サーバの再起動をせずにプログラムの変更内容を反映できる
+# require 'sinatra/reloader'  # for dev: サーバの再起動をせずにプログラムの変更内容を反映できる
 require './compileR'
 
 # configure do
